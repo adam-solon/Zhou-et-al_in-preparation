@@ -1,0 +1,246 @@
+---
+title: "Svalbard Midtre Lovenbreen -- Zhou modeling study -- July 2021"
+subtitle: "Biogeochemistry - TOC, TN, TP, TS, NO3, PO4, SO4, and microbial cell count"
+author: "Adam J. Solon"
+date: "`r Sys.Date()`"
+#output: html_document
+output: 
+  pdf_document:
+    toc: TRUE
+    fig_width: 7
+    fig_height: 6
+    fig_caption: true
+fontsize: 12pt
+#editor_options: 
+#  chunk_output_type: console
+---
+
+# Script Summary  
+This script summarizes the biogeochemical measurements of samples from soils collected for the SUN SPEARS project.  The overarching question: 
+
+What are the mean concentrations at the four sample locations?
+
+### Steps of this pipeline:  
+1.  Create and organize directories
+2.  Load R packages
+3.  Input files
+4.  Format Files
+5.  Summary statistics 
+6. Save files and figures
+  
+```{r echo = FALSE, include = FALSE, set.seed(461)}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(include = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(cache = TRUE)
+
+```
+
+# Begin pipeline
+
+### Set paths for Taxonomic Summary analyses  
+```{r, echo = FALSE, include = FALSE}
+# Change identifiers to your system and file naming. 
+user <- "~" # computer user name
+folder <- "/Desktop"
+project <- "/Svalbard/studies"
+study <- "/Chronosequence"
+files <- "/data"
+
+directory.1 <- "/analyses/amplicons/16s"
+sub.directory.1.1 <- "/input"
+sub.directory.1.2 <- "/taxa_summary"
+
+ecosystem <- "glacial forefield - Svalbard" # Define the environment for use in report language.
+
+```
+
+```{r set paths for pipeline}
+# First define the project and project folders. 
+
+# Create pathway for pipeline
+###################################################
+path.fp <- paste0(user, folder, project, study, files)
+if (!dir.exists(path.fp)) dir.create(path.fp)
+
+```
+
+```{r set path for analyses}
+#directory.1
+###################################################
+directory.1.fp <- paste0(path.fp, directory.1)
+if (!dir.exists(directory.1.fp)) dir.create(directory.1.fp)
+
+# Create sub-directory  sub.directory.1.1
+###################################################
+sub.directory.1.1.fp <- paste0(directory.1.fp, sub.directory.1.1)
+if (!dir.exists(sub.directory.1.1.fp)) dir.create(sub.directory.1.1.fp)
+
+# Create sub-directory  sub.directory.1.2
+###################################################
+sub.directory.1.2.fp <- paste0(directory.1.fp, sub.directory.1.2)
+if (!dir.exists(sub.directory.1.2.fp)) dir.create(sub.directory.1.2.fp)
+
+# Create sub-directories objects and output
+###################################################
+
+# Create directory for 'within' pipeline R objects 
+objects.1.2.fp <- paste0(sub.directory.1.2.fp, "/objects")
+if (!dir.exists(objects.1.2.fp)) dir.create(objects.1.2.fp, recursive = TRUE)
+
+# Create directory for 'after' pipeline outputs 
+output.1.2.fp <- paste0(sub.directory.1.2.fp, "/output")
+if (!dir.exists(output.1.2.fp)) dir.create(output.1.2.fp, recursive = TRUE)
+
+# Check for the folders here as a sanity check. Should see "objects" & "output'.
+list.files(sub.directory.1.2.fp) 
+
+```
+
+### Session Information  
+```{r Install and load packages}
+# install.packages("tidyverse")
+# install.packages("knitr")
+# install.packages("phyloseq")
+
+library(tidyverse); packageVersion("tidyverse")
+library(knitr); packageVersion("knitr")
+library(phyloseq); packageVersion("phyloseq")
+
+```  
+
+* r version: `r getRversion()`
+* RStudio version: `r rstudioapi::versionInfo()$version`
+* r packages:  
+  tidyverse, `r packageVersion("tidyverse")`  
+  knitr, `r packageVersion("knitr")`  
+  phyloseq, `r packageVersion("phyloseq")` 
+  
+### Input files 
+Phyloseq objects from script 'chrono-normalization-transformation-16s.Rmd' 
+
+```{r import phyloseq object}
+#import R object- rarefaction sequence counts
+phy.r.2 <- readRDS("~/Desktop/Svalbard/studies/Chronosequence/data/analyses/amplicons/16s/input/phy.r.2.rds")
+
+```
+
+##Rarefaction (i.e., repeated random subsampling without replacement for each sample) 
+```{r data transform percentage rarefy}
+#transform rarefaction 'counts' into relative abundance percentage
+phy.r.3 <- transform_sample_counts(phy.r.2, function(x) x / sum(x) )
+
+#filter very low percentage
+#GPfr = filter_taxa(GPr, function(x) mean(x) > 1e-5, TRUE)
+
+```
+
+####Plot Phyla as rarefaction data
+```{r barplot Rarefaction phylum}
+#plot using ggplot
+#convert phyloseq object into data.frame
+df.rf <- psmelt(phy.r.3)
+
+#convert phyloseq object into metadata table - data.frame
+m <- as(sample_data(phy.r.3), "data.frame")
+
+#samples to retain
+values_to_retain <- c("C11.1", "C11.2", "C11.3", "C13.1", "C13.2", "C13.3", "C15.1", "C15.2", "C15.3", "C17.1", "C17.2", "C17.3")
+
+#filter to retain only the rows with the specified samples
+m.1 <- m %>%
+  filter(samples %in% values_to_retain)
+
+# Drop unused factor levels
+m.1$soil.age.f <- droplevels(m.1$soil.age.f)
+
+#convert phyloseq object into metadata table - data.frame
+m.2 <- m.1 %>% 
+  dplyr::select(1, 11:12, 19, 25:26, 29, 55:57, 62)
+
+```
+
+```{r convert moles to grams}
+#converte to micrograms
+m.3 <- m.2%>%
+  mutate(
+    ug.C_g.soil = umol.C_g.soil * 12.011,
+    ug.N_g.soil = umol.N_g.soil * 14.007,
+    ug.S_g.soil = umol.S_g.soil * 32.066
+  )
+
+#remove columns with umol
+m.4 <- m.3 %>%
+  dplyr::select(1:4, 12, 13, 11, 14, 8:10)
+
+```
+
+```{r summary stats}
+#define function for standard error
+standard_error <- function(x) {
+  sd(x, na.rm = TRUE) / sqrt(sum(!is.na(x)))
+}
+
+#compute mean, standard error, and sample size for each variable at each sample location
+biogeochem.sum.stats <- m.4 %>%
+  group_by(soil.age.f) %>%
+  summarise(across(where(is.numeric), list(mean = ~ round(mean(.x, na.rm = TRUE), 2), 
+                                           se = ~ round(standard_error(.x), 2), 
+                                           n = ~ sum(!is.na(.x))), 
+                   .names = "{col}_{fn}"))
+
+```
+
+```{r tidy dataframe}
+#select and rename specific columns to be simpler to read
+biogeochem.sum.stats.2 <- biogeochem.sum.stats %>%
+  select(soil.age.f,
+         cell_count_per.g.soil_mean, cell_count_per.g.soil_se, cell_count_per.g.soil_n,
+         ug.C_g.soil_mean, ug.C_g.soil_se, ug.C_g.soil_n,
+         ug.N_g.soil_mean, ug.N_g.soil_se, ug.N_g.soil_n,
+         P_aqua.regia_mean, P_aqua.regia_se, P_aqua.regia_n, 
+         ug.S_g.soil_mean, ug.S_g.soil_se, ug.S_g.soil_n,
+         NO3_mean, NO3_se, NO3_n, 
+         PO4_mean, PO4_se, PO4_n,
+         SO4_mean, SO4_se, SO4_n) %>%
+  rename(Cell.count.mean = cell_count_per.g.soil_mean,
+         Cell.count.se = cell_count_per.g.soil_se,
+         Cell.count.n = cell_count_per.g.soil_n,
+         TOC.mean = ug.C_g.soil_mean,
+         TOC.se = ug.C_g.soil_se,
+         TOC.n = ug.C_g.soil_n,
+         TN.mean = ug.N_g.soil_mean,
+         TN.se = ug.N_g.soil_se,
+         TN.n = ug.N_g.soil_n,
+         TP.mean = P_aqua.regia_mean,
+         TP.se = P_aqua.regia_se,
+         TP.n = P_aqua.regia_n,
+         TS.mean = ug.S_g.soil_mean,
+         TS.se = ug.S_g.soil_se,
+         TS.n = ug.S_g.soil_n)
+
+#use scientific notation for large numbers
+biogeochem.sum.stats.3 <- biogeochem.sum.stats.2 %>%
+  mutate(across(where(is.numeric), ~ ifelse(. > 1000, formatC(., format = "e", digits = 2), .)))
+
+#transpose so rows are columns and columns are rows
+biogeochem.sum.stats.4 <- t(biogeochem.sum.stats.3)
+
+```
+
+```{r save files, include = FALSE}
+#check and set working directory
+setwd("~/Desktop/Svalbard/collaboration_manuscripts/zhou/")
+getwd()
+
+#save raw data used for analysis
+write.csv(m.4, file = "Zhou-et-al-biogeochem-data.csv", row.names = FALSE)
+
+#save summary statistics
+write.csv(biogeochem.sum.stats.3, file = "Zhou-et-al-biogeochem.sum.stats.csv", row.names = FALSE)
+
+#save summary statistics
+write.csv(biogeochem.sum.stats.4, file = "Zhou-et-al-biogeochem.sum.stats.II.csv", row.names = TRUE)
+
+```
