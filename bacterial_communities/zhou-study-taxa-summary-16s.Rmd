@@ -1,0 +1,475 @@
+---
+title: "Svalbard Midtre Lovenbreen -- Zhou modeling study -- July 2021"
+subtitle: "Taxa Summary - 16S SSU rRNA gene"
+author: "Adam J. Solon"
+date: "`r Sys.Date()`"
+#output: html_document
+output: 
+  pdf_document:
+    toc: TRUE
+    fig_width: 7
+    fig_height: 6
+    fig_caption: true
+fontsize: 12pt
+#editor_options: 
+#  chunk_output_type: console
+---
+
+# Script Summary  
+This script summarizes the taxonomic composition of bacteria and archaea (16S SSU rRNA gene) of samples from soils collected for the SUNSPEARS project.  The overarching question: 
+
+What are the mean relative abundances of the bacterial & archaeal community (16S) at four sample locations?
+
+### Steps of this pipeline:  
+1.  Create and organize directories
+2.  Load R packages
+3.  Input files
+4.  Format Files
+5.  Taxonomy summary - rarefied data
+6. Save files and figures
+  
+```{r echo = FALSE, include = FALSE, set.seed(461)}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(include = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(cache = TRUE)
+knitr::opts_chunk$set(kable.max.rows = Inf)
+
+```
+
+# Begin pipeline
+
+### Set paths for Taxonomic Summary analyses  
+```{r, echo = FALSE, include = FALSE}
+# Change identifiers to your system and file naming. 
+user <- "~" # computer user name
+folder <- "/Desktop"
+project <- "/Svalbard/studies"
+study <- "/Chronosequence"
+files <- "/data"
+
+directory.1 <- "/analyses/amplicons/16s"
+sub.directory.1.1 <- "/input"
+sub.directory.1.2 <- "/taxa_summary"
+
+ecosystem <- "glacial forefield - Svalbard" # Define the environment for use in report language.
+
+```
+
+```{r set paths for pipeline}
+# First define the project and project folders. 
+
+# Create pathway for pipeline
+###################################################
+path.fp <- paste0(user, folder, project, study, files)
+if (!dir.exists(path.fp)) dir.create(path.fp)
+
+```
+
+```{r set path for analyses}
+#directory.1
+###################################################
+directory.1.fp <- paste0(path.fp, directory.1)
+if (!dir.exists(directory.1.fp)) dir.create(directory.1.fp)
+
+# Create sub-directory  sub.directory.1.1
+###################################################
+sub.directory.1.1.fp <- paste0(directory.1.fp, sub.directory.1.1)
+if (!dir.exists(sub.directory.1.1.fp)) dir.create(sub.directory.1.1.fp)
+
+# Create sub-directory  sub.directory.1.2
+###################################################
+sub.directory.1.2.fp <- paste0(directory.1.fp, sub.directory.1.2)
+if (!dir.exists(sub.directory.1.2.fp)) dir.create(sub.directory.1.2.fp)
+
+# Create sub-directories objects and output
+###################################################
+
+# Create directory for 'within' pipeline R objects 
+objects.1.2.fp <- paste0(sub.directory.1.2.fp, "/objects")
+if (!dir.exists(objects.1.2.fp)) dir.create(objects.1.2.fp, recursive = TRUE)
+
+# Create directory for 'after' pipeline outputs 
+output.1.2.fp <- paste0(sub.directory.1.2.fp, "/output")
+if (!dir.exists(output.1.2.fp)) dir.create(output.1.2.fp, recursive = TRUE)
+
+# Check for the folders here as a sanity check. Should see "objects" & "output'.
+list.files(sub.directory.1.2.fp) 
+
+```
+
+### Session Information  
+```{r Install and load packages}
+# install.packages("tidyverse")
+# install.packages("knitr")
+# install.packages("phyloseq")
+
+library(tidyverse); packageVersion("tidyverse")
+library(knitr); packageVersion("knitr")
+library(phyloseq); packageVersion("phyloseq")
+
+```  
+
+* r version: `r getRversion()`
+* RStudio version: `r rstudioapi::versionInfo()$version`
+* r packages:  
+  tidyverse, `r packageVersion("tidyverse")`  
+  knitr, `r packageVersion("knitr")`  
+  phyloseq, `r packageVersion("phyloseq")` 
+  
+### Input files 
+Phyloseq objects from script 'chrono-normalization-transformation-16s.Rmd' 
+
+```{r import phyloseq object}
+#import R object- rarefaction sequence counts
+phy.r.2 <- readRDS("~/Desktop/Svalbard/studies/Chronosequence/data/analyses/amplicons/16s/input/phy.r.2.rds")
+
+```
+
+## Relative Abundance 
+```{r data transform percentage rarefy}
+#transform rarefaction 'counts' into relative abundance percentage
+phy.r.3 <- transform_sample_counts(phy.r.2, function(x) x / sum(x) )
+
+#filter very low percentage
+#GPfr = filter_taxa(GPr, function(x) mean(x) > 1e-5, TRUE)
+
+```
+
+### Plot Phyla  
+```{r barplot Rarefaction phylum}
+#plot using ggplot
+#convert phyloseq object into data.frame
+df.rf <- psmelt(phy.r.3)
+
+#convert phyloseq object into metadata table - data.frame
+m <- as(sample_data(phy.r.3), "data.frame")
+
+#convert phyloseq object into metadata table - data.frame
+m.1 <- m %>% dplyr::select(samples, soil.age.f)
+  
+# Aggregate sum of weight by feed type
+phy.sum.r <- df.rf %>%
+  group_by(samples, Phylum) %>%
+  summarise(PhySum = sum(Abundance))
+
+#convert abundance into 0-100%
+phy.sum.r$PhySum <- phy.sum.r$PhySum * 100
+
+#set all low abundance as same read out
+phy.sum.r$Phylum[phy.sum.r$PhySum < 1.0] <- "other"
+
+#create a df with list of all phylum in their first occurence
+phy.vec.r <- phy.sum.r[match(unique(phy.sum.r$Phylum), phy.sum.r$Phylum),]
+
+#create a vector with all phylums
+phy.vec.r.1 <- phy.vec.r$Phylum
+
+#transform phylum into factor
+phy.sum.r.1 <- phy.sum.r %>% mutate_at('Phylum', as.factor)
+
+#how many unique phylum
+number.r <- nlevels(phy.sum.r.1$Phylum)
+
+#reorder factor levels of Phylum
+phy.sum.r.1$Phylum <- factor(phy.sum.r.1$Phylum, levels=c("Actinobacteriota",
+                        "Bacteroidota",
+                        "Firmicutes",
+                        "Proteobacteria",
+                        "Bdellovibrionota",
+                        "Chloroflexi",
+                        "Cyanobacteria",
+                        "Deinococcota",
+                        "Verrucomicrobiota",
+                        "Halobacterota",
+                        "Acidobacteriota",
+                        "Armatimonadota",
+                        "Gemmatimonadota",
+                        "Planctomycetota",
+                        "Myxococcota",
+                        "Fibrobacterota",
+                        "Patescibacteria",
+                        "Dependentiae",
+                        "Crenarchaeota",
+                        "Fusobacteriota",
+                        "Desulfobacterota",
+                        "Latescibacterota",
+                        "Thermoplasmatota",
+                        "SAR324 clade(Marine group B)",
+                        "other"))
+
+#add column with soil age values
+#merge dataframes
+phy.sum.r.2 <- merge(phy.sum.r.1, m.1, by = "samples")
+
+#soil age as factor
+phy.sum.r.2$soil.age.f <- factor(phy.sum.r.2$soil.age.f, levels=c("2",
+                                                              "9",
+                                                              "14",
+                                                              "17",
+                                                              "23",
+                                                              "35",
+                                                              "47",
+                                                              "60",
+                                                              "67",
+                                                              "tundra"))
+                           
+
+#create a color palette
+pal.3 <- c('#FFC0CB', '#A52A2A', '#FFD700', '#FFA500', '#3182bd', 
+           '#FF81C0', '#008000', '#C20078', '#D2691E', '#DC143C',
+           '#800080', '#FF4500', '#069AF3', '#0343DF', '#F97306',
+           '#393b79', '#01153E', '#15B01A', '#90EE90', '#9ACD32',
+           '#00FFFF', '#8C000F', '#06C2AC', '#C5C9C7', '#13EAC9', 
+           '#7FFF00', '#C1F80A', '#F0E68C', '#FFFFCB', '#FFFF00', 
+           '#74c476', '#ad494a', '#FF7F50', '#9A0EEA', '#DDA0DD',
+           '#DA70D6', '#054907', '#FF00FF')
+
+# Create the bar plot
+p.r <- ggplot(data = phy.sum.r.2, aes(x = samples, y = PhySum, fill= Phylum)) +
+  geom_bar(stat = "identity", position = "stack") +
+  scale_fill_manual(values = pal.3) +
+  scale_y_continuous(expand = c(0,0)) +
+  facet_wrap(~ soil.age.f, scales = "free_x", nrow = 1, strip.position = "top") +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  guides(fill = guide_legend(nrow = 5)) 
+
+```
+
+```{r display rarefaction taxa sum 1}
+#Display the plot
+p.r
+
+```
+
+
+```{r barplot rarefaction class}
+# Aggregate sum of weight by feed type
+cls.sum.r <- df.rf %>%
+  group_by(samples, Class) %>%
+  summarise(clsSum = sum(Abundance))
+
+#convert abundance into 0-100%
+cls.sum.r$clsSum <- cls.sum.r$clsSum * 100
+
+#create a df with list of all class in their first occurrence
+cls.vec.r <- cls.sum.r[match(unique(cls.sum.r$Class), cls.sum.r$Class),]
+
+#subet only proteobacteria
+cls.sum.r.1 <- cls.sum.r %>% 
+  dplyr::filter(Class %in%  c("Alphaproteobacteria", "Gammaproteobacteria", "Proteobacteria_Phylum"))
+
+#transform class into factor
+cls.sum.r.1 <- cls.sum.r.1 %>% mutate_at('Class', as.factor)
+
+#convert add other as factor
+cls.sum.r.1$Class <- factor(cls.sum.r.1$Class, levels = c(levels(cls.sum.r.1$Class), "other"))
+
+#set all low abundance as same read out
+cls.sum.r.1$Class[cls.sum.r.1$clsSum < 1.0] <- "other"
+
+# Drop unused factor levels
+cls.sum.r.1$Class <- droplevels(cls.sum.r.1$Class)
+
+#how many unique class
+number.r.c <- nlevels(cls.sum.r.1$Class)
+
+#subet only proteobacteria
+cls.sum.r.2 <- cls.sum.r.1 %>% 
+  rename(Phylum = Class) %>%
+  rename(PhySum = clsSum)
+
+#drop the proteobacteria phylum
+phy.sum.r.c <- phy.sum.r %>%
+  filter(Phylum != "Proteobacteria")
+
+#add the two class of proteobacteria that show up in the dataset
+phy.sum.r.3 <- rbind(cls.sum.r.2, phy.sum.r.c)
+
+#create a df with list of all phylum in their first occurence
+phy.3.vec.r <- phy.sum.r.3[match(unique(phy.sum.r.3$Phylum), phy.sum.r.3$Phylum),]
+
+#create a vector with all phylum
+phy.3.vec.r.1 <- phy.3.vec.r$Phylum
+
+#transform phylum into factor
+phy.3.sum.r.1 <- phy.sum.r.3 %>% mutate_at('Phylum', as.factor)
+
+#how many unique phylum
+number.3.r <- nlevels(phy.3.sum.r.1$Phylum)
+
+#reorder factor levels of Phylum
+phy.sum.r.3$Phylum <- factor(phy.sum.r.3$Phylum, levels=c("Alphaproteobacteria", 
+                                                      "Gammaproteobacteria",
+                                                      "Actinobacteriota",
+                                                      "Bacteroidota",
+                        "Firmicutes",
+                        "Bdellovibrionota",
+                        "Chloroflexi",
+                        "Cyanobacteria",
+                        "Deinococcota",
+                        "Verrucomicrobiota",
+                        "Halobacterota",
+                        "Acidobacteriota",
+                        "Armatimonadota",
+                        "Gemmatimonadota",
+                        "Planctomycetota",
+                        "Myxococcota",
+                        "Patescibacteria",
+                        "SAR324 clade(Marine group B)",
+                        "Dependentiae",
+                        "Crenarchaeota",
+                        "Fusobacteriota",
+                        "Desulfobacterota",
+                        "WPS-2",
+                        "Thermoplasmatota",
+                        "Latescibacterota",
+                        "other"))
+
+#merge dataframes
+phy.sum.r.4 <- merge(phy.sum.r.3, m.1, by = "samples")
+
+#soil age as factor
+phy.sum.r.4$soil.age.f <- factor(phy.sum.r.4$soil.age.f, levels=c("2",
+                                                              "9",
+                                                              "14",
+                                                              "17",
+                                                              "23",
+                                                              "35",
+                                                              "47",
+                                                              "60",
+                                                              "67",
+                                                              "tundra"))
+
+#keep only samples intended for this study
+# Set of values to match
+values_to_keep <- c("C11.1", "C11.2", "C11.3", "C13.1", "C13.2", "C13.3", "C15.1", "C15.2", "C15.3", "C17.1", "C17.2", "C17.3")
+
+# Subset the dataframe
+phy.sum.r.5 <- phy.sum.r.4[phy.sum.r.4$samples %in% values_to_keep, ]
+
+# Print original levels
+print(levels(phy.sum.r.5$soil.age.f))
+
+# Rename factors
+levels(phy.sum.r.5$soil.age.f) <- c("2", "9", "14", "17", "23", "S0.11", "S0.13", "S2", "S0.17", "tundra")
+
+#color palette
+pal.4 <- c('#FFC0CB', '#A52A2A', '#FFD700', '#FFA500', '#3182bd', 
+           '#FF81C0', '#C20078', '#008000', '#D2691E', '#DC143C',
+           '#800080', '#FF4500', '#069AF3', '#0343DF', '#F97306',
+           '#393b79', '#01153E', "#EFEDF5", "#DADAEB", "#BCBDDC",
+           "#9E9AC8", "#807DBA", '#00FFFF', '#8C000F', '#C5C9C7',
+           '#06C2AC', '#13EAC9', '#7FFF00', '#C1F80A', '#F0E68C',
+           '#74c476', '#ad494a', '#FF7F50', '#9A0EEA', '#DDA0DD',
+           '#DA70D6', '#054907', '#FF00FF', '#FFFFCB', '#FFFF00')
+
+# Create the bar plot 
+#to label with percentages geom_text(aes(label = paste(format(PhySum, nsmall = 2), "%")), position = position_stack(vjust = 0.5), size = 1.5, colour = "white") +
+
+#capitalize 'samples' column in df
+phy.sum.r.6 <- phy.sum.r.5 %>%
+  rename_with(str_to_title)
+
+#ggplot
+p.r.zs <- ggplot(data = phy.sum.r.6, aes(x = Samples, y = Physum, fill= Phylum)) +
+  geom_bar(stat = "identity", position = "stack") +
+   labs(y = "Relative Abundance (%)",
+        fill = "Taxa",
+        subtitle = "Sample Location") +
+  scale_fill_manual(values = pal.4) +
+  scale_y_continuous(expand = c(0,0)) +
+  facet_wrap(~ Soil.age.f, scales = "free_x", nrow = 1, strip.position = "top") +
+  theme_bw() +
+  theme(plot.subtitle = element_text(size = rel(1.2), hjust = 0.5),
+        strip.background = element_rect(colour = "black", fill = "white"),
+        #strip.text.x = element_text(face = "bold", size = rel(1.25)),
+        strip.text.x = element_text(size = rel(1.25)),
+        legend.position = "bottom",
+        legend.box.background = element_rect(),
+        legend.box.margin = margin(6, 6, 6, 6),
+        #legend.title = element_text(size = rel(1.2), face = "bold"),
+        legend.title = element_text(size = rel(1.2)),
+        #element_text(size = rel(1.1), face = "bold"),
+        element_text(size = rel(1.1)),
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        axis.title.x = element_text(size = rel(1.2)),
+        #axis.title.y = element_text(size = rel(1.5), face = "bold"))
+        axis.title.y = element_text(size = rel(1.5))) +
+  guides(fill = guide_legend(nrow = 5)) 
+
+```
+
+### Plot Phyla & Proteobacteria Class 
+```{r display rarefaction taxa sum 2}
+#Display the plot
+p.r.zs
+
+```
+
+## Summary Statistics  
+```{r summary statistics}
+# Compute the mean and standard error
+tax.sum.stats <- phy.sum.r.5 %>%
+  group_by(soil.age.f, Phylum) %>%
+  summarise(
+    mean_PhySum = mean(PhySum, na.rm = TRUE),
+    se_PhySum = sd(PhySum, na.rm = TRUE) / sqrt(n())
+  ) %>%
+  arrange(soil.age.f, desc(mean_PhySum))
+
+```
+
+```{r print the results}
+# Print the result
+knitr::kable(tax.sum.stats)
+
+```
+
+```{r save files, include = FALSE}
+#check and set working directory
+setwd("~/Desktop/Svalbard/collaboration_manuscripts/zhou/")
+getwd()
+
+#rarefied relative abundance
+#save plot as pdf
+pdf("taxa-summary-16s-rarefied-932.pdf",         # File name
+    width =11, height = 8.5, # Width and height in inches
+    bg = "white",          # Background color
+    colormodel = "cmyk",  # Color model (cmyk is required for most publications)
+    paper = "USr")          # Paper size-- portrait: a4", "letter", "legal" (or "us") | landscape: "a4r" and "USr"
+
+#plot
+p.r.zs
+
+# Closing the graphical device
+dev.off() 
+
+#Save as jpg
+jpeg(filename = "taxa-summary-16s-rarefied-932.jpeg", 
+     width = 1000, 
+     height = 600, 
+     units = "px", 
+     pointsize = 12, 
+     quality = 100, 
+     bg = "white", 
+     res = NA)
+
+#plot
+p.r.zs
+
+# Close device
+dev.off()
+
+#Groups
+ggsave("taxa-summary-16s-rarefied-932.svg", plot = p.r.zs, device = "svg", width = 11, height = 8.5)
+
+#save summary statistics
+write.csv(tax.sum.stats, file = "tax.sum.stats.csv", row.names = FALSE)
+
+```
+
+##End of script 
