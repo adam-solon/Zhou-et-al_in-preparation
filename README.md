@@ -10,4 +10,4 @@ Two analyses, saved as R markdown files, are located in subdirectories:
 
 2) bacterial_communities which computes relative abundances of 16S SSU rRNA gene amplicons and displays those values in stacked bar graphs. 
 
-These analyses are one component (characterization) of the overall study modelling seasonal processes of soils at different stages of succession in a glacial forefield on the Archipeligo of Svalbard.
+These analyses are one component (characterization) of the overall study modelling seasonal processes of soils at different stages of succession in a glacial forefield on the Archipelago of Svalbard.
